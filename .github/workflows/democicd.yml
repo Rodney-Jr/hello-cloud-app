@@ -1,11 +1,38 @@
-name: Hello Cloud Workflow
+name: Deploy to EC2
 
-on: [push] # Triggers the workflow on every push to the repository
+on:
+  push:
+    branches:
+      - main   # Trigger workflow only when pushing to main branch
 
 jobs:
-  print-message:
-    runs-on: ubuntu-latest # Specifies the runner environment
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Print Hello Cloud
-        run: echo "hello cloud" # Executes a shell command to print the message
+      # Step 1: Checkout repository code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Copy index.html to EC2 using SCP
+      - name: Deploy index.html to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          # Create the private key file
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+
+          # Copy index.html to EC2 (example: /var/www/html/)
+          scp -o StrictHostKeyChecking=no -i private_key.pem index.html $EC2_USER@$EC2_HOST:/var/www/html/index.html
+
+      # Step 3: (Optional) Restart web server
+      - name: Restart Nginx (optional)
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key.pem $EC2_USER@$EC2_HOST "sudo systemctl restart nginx || sudo systemctl restart apache2"
